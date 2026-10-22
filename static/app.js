@@ -16,6 +16,9 @@ const transcriptBox = document.getElementById("transcriptBox");
 const transcriptPlaceholder = document.getElementById("transcriptPlaceholder");
 const clearTranscriptBtn = document.getElementById("clearTranscriptBtn");
 const ordersContainer = document.getElementById("ordersContainer");
+const speechNotice = document.getElementById("speechNotice");
+const interimMsg = document.getElementById("interimMsg");
+const interimText = document.getElementById("interimText");
 
 // Human-readable labels for each state
 const STATE_LABELS = {
@@ -43,9 +46,9 @@ function setState(newState) {
   stateLabel.textContent = STATE_LABELS[currentState];
 
   // 2. Synchronize Start / End Call button enabled states
-  const isCallActive = currentState !== "idle";
-  startCallBtn.disabled = isCallActive;
-  endCallBtn.disabled = !isCallActive;
+  const isCallActiveState = currentState !== "idle";
+  startCallBtn.disabled = isCallActiveState;
+  endCallBtn.disabled = !isCallActiveState;
 
   console.log(`[State Change] -> ${currentState}`);
 }
@@ -74,9 +77,243 @@ function addTranscriptMessage(sender, text) {
   msgDiv.appendChild(senderTag);
   msgDiv.appendChild(bubble);
 
-  transcriptBox.appendChild(msgDiv);
+  // Keep the interim message element always at the bottom of the transcript
+  if (interimMsg && interimMsg.parentNode === transcriptBox) {
+    transcriptBox.insertBefore(msgDiv, interimMsg);
+  } else {
+    transcriptBox.appendChild(msgDiv);
+  }
+
   // Auto-scroll to the bottom of the transcript
   transcriptBox.scrollTop = transcriptBox.scrollHeight;
+}
+
+// ============================================================================
+// Web Speech API: SpeechRecognition (STT)
+// ============================================================================
+
+// Browser compatibility fallback (Chrome, Edge use webkitSpeechRecognition)
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
+let isCallActive = false; // Tracks if voice call is actively ongoing
+let hasFiredSpeechStart = false; // Flags whether onSpeechStart has fired for current utterance
+
+/**
+ * Display a notice banner for browser compatibility or mic permission errors.
+ * @param {string} message
+ * @param {'warning' | 'danger'} type
+ */
+function showSpeechNotice(message, type = "warning") {
+  if (!speechNotice) return;
+  speechNotice.className = `speech-notice ${type}`;
+  speechNotice.textContent = message;
+  speechNotice.style.display = "block";
+}
+
+/**
+ * Clear any active notice banner.
+ */
+function clearSpeechNotice() {
+  if (!speechNotice) return;
+  speechNotice.style.display = "none";
+  speechNotice.textContent = "";
+}
+
+/**
+ * Check if the browser supports the Web Speech API.
+ * If unsupported, alerts the user and disables the Start Call button.
+ */
+function checkBrowserSpeechSupport() {
+  if (!SpeechRecognition) {
+    showSpeechNotice(
+      "Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.",
+      "warning"
+    );
+    startCallBtn.disabled = true;
+    startCallBtn.title = "Please use Chrome or Edge for voice recognition";
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Show interim (in-progress) speech live on screen while the user speaks.
+ * @param {string} text
+ */
+function showInterimText(text) {
+  if (transcriptPlaceholder) {
+    transcriptPlaceholder.style.display = "none";
+  }
+  if (!interimMsg || !interimText) return;
+
+  interimText.textContent = text;
+  interimMsg.style.display = "flex";
+
+  // Keep interim bubble at the very bottom
+  transcriptBox.appendChild(interimMsg);
+  transcriptBox.scrollTop = transcriptBox.scrollHeight;
+}
+
+/**
+ * Hide the interim speech bubble once speech finalizes or ends.
+ */
+function hideInterimText() {
+  if (!interimMsg || !interimText) return;
+  interimMsg.style.display = "none";
+  interimText.textContent = "";
+}
+
+/**
+ * Barge-in hook: fires on the FIRST interim chunk when the user begins speaking.
+ * In later stages, this callback will cancel any active agent audio playback.
+ */
+function onSpeechStart() {
+  console.log("[Speech Start] User started speaking (barge-in hook fired)");
+}
+
+/**
+ * Handler for finalized user speech.
+ * Displays the customer message in the transcript.
+ * (Will send to backend WebSocket in the next stage).
+ * @param {string} text
+ */
+function onUserUtterance(text) {
+  console.log("[User Utterance]", text);
+  addTranscriptMessage("customer", text);
+  // Backend WebSocket connection will be wired here in the next stage
+}
+
+/**
+ * Initialize the SpeechRecognition instance with required configuration.
+ */
+function initSpeechRecognition() {
+  if (!SpeechRecognition || recognition) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-IN"; // Indian English accent
+  recognition.continuous = true; // Listen continuously until explicitly stopped
+  recognition.interimResults = true; // Emit live partial speech results
+
+  recognition.onstart = () => {
+    console.log("[SpeechRecognition] Service started listening");
+  };
+
+  recognition.onresult = (event) => {
+    let interimTranscript = "";
+
+    // Process all results returned in this speech event
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = result[0].transcript;
+
+      if (result.isFinal) {
+        // Result is final: clear interim display and reset barge-in flag
+        hideInterimText();
+        hasFiredSpeechStart = false;
+
+        const finalText = text.trim();
+        if (finalText) {
+          onUserUtterance(finalText);
+        }
+      } else {
+        // Unfinalized partial words
+        interimTranscript += text;
+      }
+    }
+
+    if (interimTranscript.trim()) {
+      // Fire onSpeechStart only once per utterance (at first interim chunk)
+      if (!hasFiredSpeechStart) {
+        hasFiredSpeechStart = true;
+        onSpeechStart();
+      }
+      showInterimText(interimTranscript);
+    }
+  };
+
+  // Auto-restart recognition if the browser stops it while the call is active.
+  // Browsers (like Chrome) stop continuous recognition after brief silences.
+  recognition.onend = () => {
+    console.log("[SpeechRecognition] Service ended");
+    hideInterimText();
+    hasFiredSpeechStart = false;
+
+    // Only restart if the user hasn't hung up
+    if (isCallActive && currentState !== "idle") {
+      try {
+        recognition.start();
+        console.log("[SpeechRecognition] Auto-restarted recognition");
+      } catch (err) {
+        console.warn("[SpeechRecognition] Auto-restart skipped:", err);
+      }
+    }
+  };
+
+  // Handle errors: mic permission denied, no-speech timeout, network errors
+  recognition.onerror = (event) => {
+    console.warn("[SpeechRecognition] Error:", event.error);
+
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      showSpeechNotice(
+        "Microphone access was denied. Please allow microphone permissions in your browser settings to speak with Aria.",
+        "danger"
+      );
+      stopCall();
+    } else if (event.error === "no-speech") {
+      // Normal silence timeout; recognition.onend will auto-restart if still in call
+      console.log("[SpeechRecognition] Silence detected; keeping listener active");
+    } else if (event.error === "network") {
+      showSpeechNotice(
+        "Speech recognition network error. Please check your internet connection.",
+        "warning"
+      );
+    }
+  };
+}
+
+/**
+ * Start call session: updates state and starts microphone listening.
+ */
+function startCall() {
+  clearSpeechNotice();
+
+  if (!checkBrowserSpeechSupport()) {
+    return;
+  }
+
+  isCallActive = true;
+  setState("listening");
+
+  if (!recognition) {
+    initSpeechRecognition();
+  }
+
+  try {
+    recognition.start();
+  } catch (err) {
+    console.warn("[SpeechRecognition] start() failed or already running:", err);
+  }
+}
+
+/**
+ * End call session: stops speech recognition and resets state to idle.
+ */
+function stopCall() {
+  isCallActive = false;
+  hideInterimText();
+  hasFiredSpeechStart = false;
+
+  if (recognition) {
+    try {
+      recognition.stop();
+    } catch (err) {
+      console.warn("[SpeechRecognition] stop() error:", err);
+    }
+  }
+
+  setState("idle");
 }
 
 /**
@@ -154,27 +391,28 @@ function addSampleChatTurn() {
 
 // Event Listeners for Call Buttons
 startCallBtn.addEventListener("click", () => {
-  // Start call initiates listening state
-  setState("listening");
+  startCall();
 });
 
 endCallBtn.addEventListener("click", () => {
-  // End call returns agent to idle state
-  setState("idle");
+  stopCall();
 });
 
 clearTranscriptBtn.addEventListener("click", () => {
-  transcriptBox.innerHTML = `
-    <div class="transcript-placeholder" id="transcriptPlaceholder">
-      Click <strong>Start Call</strong> and speak to Aria, or use the simulation buttons below to test states.
-    </div>
-  `;
+  // Remove all completed chat messages while preserving placeholder & interim DOM
+  const messages = transcriptBox.querySelectorAll(".chat-msg:not(.interim)");
+  messages.forEach((msg) => msg.remove());
+  if (transcriptPlaceholder) {
+    transcriptPlaceholder.style.display = "block";
+  }
+  hideInterimText();
 });
 
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
   setState("idle");
   fetchOrders();
+  checkBrowserSpeechSupport();
 });
 
 // ----- THROWAWAY: Text Chat Test (remove once voice pipeline is live) -----

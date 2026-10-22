@@ -38,6 +38,9 @@
           </div>
         </div>
 
+        <!-- Browser support & microphone permission notice banner -->
+        <div id="speechNotice" class="speech-notice" style="display: none;"></div>
+
         <!-- Live Transcript -->
         <div class="transcript-wrapper">
           <div class="transcript-header">
@@ -47,6 +50,11 @@
           <div id="transcriptBox" class="transcript-box">
             <div class="transcript-placeholder" id="transcriptPlaceholder">
               Click <strong>Start Call</strong> and speak to Aria, or use the simulation buttons below to test states.
+            </div>
+            <!-- Live interim speech bubble (shown while user is actively talking) -->
+            <div id="interimMsg" class="chat-msg customer interim" style="display: none;">
+              <span class="msg-sender">You (Listening...)</span>
+              <div class="msg-bubble" id="interimText"></div>
             </div>
           </div>
         </div>
