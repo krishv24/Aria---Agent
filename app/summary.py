@@ -15,9 +15,12 @@ load_dotenv()
 
 logger = logging.getLogger("aria.summary")
 
-# Shared Groq client for post-call analytics
-_groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY", ""))
-MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+def get_groq_client() -> AsyncGroq:
+    """Instantiate AsyncGroq with sanitized API key."""
+    key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+    if not key:
+        logger.error("[Groq Summary] GROQ_API_KEY environment variable is missing or empty!")
+    return AsyncGroq(api_key=key or "missing_key")
 
 
 class CustomerIntent(str, Enum):
@@ -129,8 +132,10 @@ def make_fallback_summary(reason: str = "No customer conversation took place.") 
 
 async def _request_groq_summary(transcript: str) -> CallSummary:
     """Send transcript to Groq in JSON mode and parse the resulting Pydantic model."""
-    response = await _groq_client.chat.completions.create(
-        model=MODEL,
+    client = get_groq_client()
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+    response = await client.chat.completions.create(
+        model=model,
         messages=[
             {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
             {"role": "user", "content": f"TRANSCRIPT:\n{transcript}"},

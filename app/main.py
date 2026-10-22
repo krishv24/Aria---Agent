@@ -29,8 +29,14 @@ async def serve_index():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint to verify server status."""
-    return {"status": "ok"}
+    """Health check endpoint to verify server status and Groq configuration."""
+    raw_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+    return {
+        "status": "ok",
+        "groq_configured": bool(raw_key),
+        "model": model,
+    }
 
 
 @app.get("/api/orders", response_model=list[Order])

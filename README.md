@@ -12,7 +12,7 @@ flowchart TD
     Browser <-->|WebSocket: /ws/call\n(Control JSON + Binary MP3 Frames)| Server["FastAPI Server (app/main.py)"]
     
     subgraph Backend Intelligence Pipeline
-        Server -->|System Prompt + Conversation History| LLM["Groq LLM (llama-3.3-70b-versatile)"]
+        Server -->|System Prompt + Conversation History| LLM["Groq LLM (openai/gpt-oss-120b)"]
         LLM -->|Tool Call: get_order_details| Tools["Policy & Order Engine (app/tools.py)"]
         Tools -->|Order State + Code Flags| LLM
         LLM -->|Streaming Token Stream| SentenceChunker["Sentence Splitter (app/tts.py)"]
@@ -115,7 +115,7 @@ cp .env.example .env
 Set your Groq key inside `.env`:
 ```env
 GROQ_API_KEY=gsk_your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 ### 5. Start Server
