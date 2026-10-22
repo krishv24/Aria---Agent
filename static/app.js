@@ -20,6 +20,17 @@ const speechNotice = document.getElementById("speechNotice");
 const interimMsg = document.getElementById("interimMsg");
 const interimText = document.getElementById("interimText");
 
+// Post-Call Summary screen element references
+const summaryScreen = document.getElementById("summaryScreen");
+const intentTag = document.getElementById("intentTag");
+const resolutionTag = document.getElementById("resolutionTag");
+const orderRefTag = document.getElementById("orderRefTag");
+const summaryTranscriptList = document.getElementById("summaryTranscriptList");
+const transcriptCountBadge = document.getElementById("transcriptCountBadge");
+const summaryJsonCode = document.getElementById("summaryJsonCode");
+const callSummaryText = document.getElementById("callSummaryText");
+const copyJsonBtn = document.getElementById("copyJsonBtn");
+
 // Human-readable labels for each state
 const STATE_LABELS = {
   idle: "Idle",
@@ -221,6 +232,11 @@ function handleServerMessage(msg) {
     case "fallback_speak":
       console.warn("[TTS Fallback] Edge-TTS failed on server, using window.speechSynthesis:", msg.text);
       speakWithBrowserFallback(msg.text);
+      break;
+
+    case "summary":
+      console.log("[WebSocket] Received post-call summary:", msg.data);
+      renderSummaryScreen(msg.data, msg.transcript);
       break;
 
     case "error":
@@ -446,6 +462,7 @@ function initSpeechRecognition() {
  */
 function startCall() {
   clearSpeechNotice();
+  closeSummaryScreen();
 
   if (!checkBrowserSpeechSupport()) {
     return;
@@ -474,9 +491,11 @@ function startCall() {
 }
 
 /**
- * End call session: stops speech recognition, audio playback, and closes WebSocket.
+ * End call session: stops speech recognition, audio playback, and triggers summary.
  */
 function stopCall() {
+  if (!isCallActive) return;
+
   isCallActive = false;
   hasInterruptedCurrentTurn = false;
   currentAgentBubble = null;
@@ -486,17 +505,9 @@ function stopCall() {
   hideInterimText();
   hasFiredSpeechStart = false;
 
-  // 2. Notify server and close WebSocket
-  if (callSocket) {
-    if (callSocket.readyState === WebSocket.OPEN) {
-      sendWsMessage({ type: "end_call" });
-    }
-    try {
-      callSocket.close();
-    } catch (err) {
-      console.warn("[WebSocket] Error closing socket:", err);
-    }
-    callSocket = null;
+  // 2. Notify server to finalize turn and emit post-call summary
+  if (callSocket && callSocket.readyState === WebSocket.OPEN) {
+    sendWsMessage({ type: "end_call" });
   }
 
   // 3. Stop microphone speech recognition
@@ -510,6 +521,149 @@ function stopCall() {
 
   // 4. Return UI to idle
   setState("idle");
+}
+
+// ============================================================================
+// Post-Call Structured Summary & Analytics
+// ============================================================================
+
+/**
+ * Render the post-call summary screen with structured analytics and chronological transcript.
+ * @param {object} summaryData - { customer_intent, order_id, resolution_status, call_summary }
+ * @param {Array<object>} transcript - [{ role: "assistant"|"user", content: "..." }]
+ */
+function renderSummaryScreen(summaryData, transcript) {
+  if (!summaryScreen) return;
+
+  // 1. Customer Intent Tag
+  if (intentTag) {
+    intentTag.textContent = summaryData.customer_intent || "OTHER";
+  }
+
+  // 2. Resolution Status Tag with dynamic color coding
+  if (resolutionTag) {
+    const status = summaryData.resolution_status || "UNRESOLVED";
+    resolutionTag.textContent = status;
+    resolutionTag.className = "badge-status";
+    if (status === "RESOLVED") {
+      resolutionTag.classList.add("status-resolved");
+    } else if (status === "ESCALATION_NEEDED") {
+      resolutionTag.classList.add("status-escalation");
+    } else {
+      resolutionTag.classList.add("status-unresolved");
+    }
+  }
+
+  // 3. Order ID Tag
+  if (orderRefTag) {
+    orderRefTag.textContent = summaryData.order_id || "None";
+  }
+
+  // 4. Executive Call Summary text
+  if (callSummaryText) {
+    callSummaryText.textContent = summaryData.call_summary || "No summary available.";
+  }
+
+  // 5. Pretty JSON code block
+  if (summaryJsonCode) {
+    summaryJsonCode.textContent = JSON.stringify(summaryData, null, 2);
+  }
+
+  // 6. Chronological Transcript
+  if (summaryTranscriptList) {
+    // Only display non-empty messages
+    const validTurns = (transcript || []).filter(
+      (t) => t && t.content && t.content.trim().length > 0
+    );
+
+    if (validTurns.length === 0) {
+      summaryTranscriptList.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); padding: 1.5rem 0; font-size: 0.85rem;">
+          No customer conversation took place during this call.
+        </div>
+      `;
+      if (transcriptCountBadge) transcriptCountBadge.textContent = "0 turns";
+    } else {
+      if (transcriptCountBadge) transcriptCountBadge.textContent = `${validTurns.length} turns`;
+      summaryTranscriptList.innerHTML = validTurns
+        .map((turn) => {
+          const isCustomer = turn.role === "user";
+          const speakerClass = isCustomer ? "customer" : "aria";
+          const speakerName = isCustomer ? "Customer" : "Aria (Support)";
+          return `
+            <div class="summary-turn ${speakerClass}">
+              <div class="turn-speaker">${speakerName}</div>
+              <div>${turn.content}</div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+  }
+
+  // 7. Reveal summary screen and smoothly scroll into view
+  summaryScreen.style.display = "block";
+  summaryScreen.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Copy formatted summary JSON to clipboard.
+ */
+function copySummaryJson() {
+  if (!summaryJsonCode) return;
+  const jsonText = summaryJsonCode.textContent;
+  navigator.clipboard.writeText(jsonText).then(() => {
+    if (copyJsonBtn) {
+      const originalText = copyJsonBtn.textContent;
+      copyJsonBtn.textContent = "✅ Copied!";
+      setTimeout(() => {
+        copyJsonBtn.textContent = originalText;
+      }, 2000);
+    }
+  }).catch((err) => {
+    console.error("Clipboard copy failed:", err);
+  });
+}
+
+/**
+ * Hide the summary screen.
+ */
+function closeSummaryScreen() {
+  if (summaryScreen) {
+    summaryScreen.style.display = "none";
+  }
+}
+
+/**
+ * Start a brand new call from the summary screen.
+ */
+function startNewCallFromSummary() {
+  closeSummaryScreen();
+  clearTranscriptBtn.click();
+  startCall();
+}
+
+/**
+ * Test button: manually trigger summary generation on sample conversation.
+ */
+async function testSummaryGeneration() {
+  const sampleHistory = [
+    { role: "assistant", content: "Hello! Welcome to Aura Skincare. How can I help you today?" },
+    { role: "user", content: "Hi, can you tell me where my order ORD-101 is?" },
+    { role: "assistant", content: "Your order ORD-101 is out for delivery via BlueDart and will arrive by 6 PM today." },
+    { role: "user", content: "Great, thanks for the help!" },
+  ];
+  try {
+    const res = await fetch("/api/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: sampleHistory }),
+    });
+    const summaryData = await res.json();
+    renderSummaryScreen(summaryData, sampleHistory);
+  } catch (err) {
+    console.error("Error testing summary:", err);
+  }
 }
 
 // ============================================================================

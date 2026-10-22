@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.orders import Order, get_all_orders
 from app.llm import get_llm_reply
 from app.tts import synthesize_sentence_bytes, stream_sentences
+from app.summary import CallSummary, generate_call_summary
 
 # Initialize FastAPI application instance
 app = FastAPI(title="Aura Skincare - Aria Voice Support Agent")
@@ -83,6 +84,17 @@ async def tts_endpoint(request: TTSRequest):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+class SummaryRequest(BaseModel):
+    """Request model for generating a post-call summary from conversation history."""
+    history: list[dict]
+
+
+@app.post("/api/summary", response_model=CallSummary)
+async def summary_endpoint(request: SummaryRequest):
+    """Generate structured JSON post-call summary for a conversation history."""
+    return await generate_call_summary(request.history)
 
 
 @app.websocket("/ws/call")
@@ -214,8 +226,17 @@ async def websocket_call_endpoint(websocket: WebSocket):
 
             elif msg_type == "end_call":
                 # 5. User ended the call
-                print("[WebSocket] User ended call")
+                print("[WebSocket] User ended call: generating post-call summary")
                 cancel_active_task()
+
+                # Generate structured JSON summary from full in-memory conversation history
+                summary = await generate_call_summary(history)
+                await websocket.send_json({
+                    "type": "summary",
+                    "data": summary.model_dump(),
+                    "transcript": history,
+                })
+
                 await websocket.send_json({"type": "state", "value": "idle"})
                 break
 
