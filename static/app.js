@@ -186,6 +186,31 @@ function onUserUtterance(text) {
 }
 
 /**
+ * Normalizes domain-specific terms and names that browser STT frequently misrecognizes.
+ * - In Indian English (en-IN), Web Speech API transcribes "Aria" as "Arya" (the common regional spelling).
+ * - "Hey are you" / "Hi are you" is a frequent phonetic mishearing of "Hey Aria" / "Hi Aria".
+ * - "Ora Skincare" / "Aurora Skincare" is corrected to brand name "Aura Skincare".
+ * @param {string} text
+ * @returns {string}
+ */
+function normalizeSpeechTranscript(text) {
+  if (!text) return "";
+
+  let cleaned = text;
+
+  // 1. Common Indian phonetic spellings of the agent's name
+  cleaned = cleaned.replace(/\b(arya|aarya|ariya)\b/gi, "Aria");
+
+  // 2. Misheard conversational greetings (e.g. "hey are you", "hi are you")
+  cleaned = cleaned.replace(/\b(hey|hi|hello)\s+are\s+you\b/gi, "$1 Aria");
+
+  // 3. Brand name corrections
+  cleaned = cleaned.replace(/\b(ora|aurora)\s+skincare\b/gi, "Aura Skincare");
+
+  return cleaned;
+}
+
+/**
  * Initialize the SpeechRecognition instance with required configuration.
  */
 function initSpeechRecognition() {
@@ -213,7 +238,7 @@ function initSpeechRecognition() {
         hideInterimText();
         hasFiredSpeechStart = false;
 
-        const finalText = text.trim();
+        const finalText = normalizeSpeechTranscript(text).trim();
         if (finalText) {
           onUserUtterance(finalText);
         }
@@ -229,7 +254,7 @@ function initSpeechRecognition() {
         hasFiredSpeechStart = true;
         onSpeechStart();
       }
-      showInterimText(interimTranscript);
+      showInterimText(normalizeSpeechTranscript(interimTranscript));
     }
   };
 
