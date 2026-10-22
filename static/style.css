@@ -54,7 +54,8 @@
   --state-speaking-dot: #4dffa0;
 
   /* Typography Stacks */
-  --font-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-heading: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -175,9 +176,10 @@ body {
 }
 
 .wordmark-title {
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   color: var(--text-white);
   text-transform: uppercase;
 }
@@ -201,11 +203,12 @@ body {
 }
 
 .hero-heading {
-  font-size: 2.1rem;
-  font-weight: 800;
+  font-family: var(--font-heading);
+  font-size: 2.2rem;
+  font-weight: 700;
   color: var(--text-white);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
 }
 
 .highlight-green {
@@ -339,112 +342,138 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   7. Buttons
+   7. Buttons (Human-Crafted, High-Contrast Engineering System)
    -------------------------------------------------------------------------- */
 .btn {
-  font-family: var(--font-sans);
-  font-size: 0.9rem;
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
   font-weight: 600;
-  padding: 0.65rem 1.4rem;
-  border-radius: 9999px;
+  letter-spacing: -0.01em;
+  padding: 0.62rem 1.35rem;
+  border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.22s ease;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   text-decoration: none;
+  user-select: none;
+  white-space: nowrap;
 }
 
-.btn-pill {
-  border-radius: 9999px;
-  padding: 0.75rem 1.75rem;
+.btn-svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .btn:disabled {
-  opacity: 0.38;
+  opacity: 0.32;
   cursor: not-allowed;
   box-shadow: none !important;
   transform: none !important;
 }
 
-/* Start Call: Neon Green Gradient Pill */
+/* Start Call: Solid High-Contrast Emerald Green */
 .btn-primary {
-  background: linear-gradient(135deg, var(--green-neon) 0%, var(--green-mint) 100%);
-  color: var(--green-dark);
+  background: #1ee37c;
+  color: #05150d;
   font-weight: 700;
-  border: 1px solid var(--green-neon);
-  box-shadow: 0 4px 18px rgba(30, 227, 124, 0.3);
+  border: 1px solid #33f08c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
 .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 0 25px rgba(30, 227, 124, 0.6);
+  background: #28f78d;
+  border-color: #55f9a4;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 4px 14px rgba(30, 227, 124, 0.3);
   transform: translateY(-1px);
 }
 
-/* End Call: Outlined Red/Coral Variant */
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* End Call: Graphite Dark Surface with Crisp Red Outline */
 .btn-danger {
-  background: var(--coral-bg);
-  border: 1px solid var(--coral-alert);
-  color: var(--coral-text);
-  font-weight: 700;
+  background: #181418;
+  border: 1px solid rgba(255, 77, 109, 0.5);
+  color: #ff6b81;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: rgba(255, 77, 109, 0.2);
-  box-shadow: 0 0 22px var(--coral-glow);
+  background: #25171d;
+  border-color: #ff4d6d;
+  color: #ff8597;
+  box-shadow: 0 4px 14px rgba(255, 77, 109, 0.25);
   transform: translateY(-1px);
 }
 
-/* Compact & Secondary Buttons */
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Secondary & Tool Control Buttons */
 .btn-sm {
-  font-size: 0.75rem;
-  padding: 0.35rem 0.85rem;
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-body);
-  border: 1px solid var(--border-subtle);
-  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  padding: 0.38rem 0.8rem;
+  background-color: #161a25;
+  color: #9aa0ad;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .btn-sm:hover:not(:disabled) {
-  background-color: rgba(30, 227, 124, 0.1);
-  border-color: var(--border-green);
-  color: var(--green-neon);
+  background-color: #1e2434;
+  border-color: rgba(30, 227, 124, 0.4);
+  color: #ffffff;
 }
 
 .btn-outline {
   background: transparent;
-  border: 1px solid var(--border-green);
-  color: var(--green-neon);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #cbd5e1;
+  border-radius: 6px;
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: rgba(30, 227, 124, 0.12);
-  box-shadow: 0 0 14px rgba(30, 227, 124, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--green-neon);
+  color: var(--green-neon);
 }
 
 .btn-voice {
-  background-color: rgba(77, 255, 160, 0.08);
-  color: var(--green-mint);
-  border: 1px solid rgba(77, 255, 160, 0.25);
+  background-color: rgba(30, 227, 124, 0.07);
+  color: var(--green-neon);
+  border: 1px solid rgba(30, 227, 124, 0.25);
+  border-radius: 6px;
   font-weight: 600;
 }
 
 .btn-voice:hover:not(:disabled) {
-  background-color: rgba(77, 255, 160, 0.18);
-  box-shadow: 0 0 14px rgba(77, 255, 160, 0.3);
+  background-color: rgba(30, 227, 124, 0.16);
+  border-color: rgba(30, 227, 124, 0.5);
+  color: #ffffff;
 }
 
 .btn-danger-sm {
-  background-color: rgba(255, 77, 109, 0.1);
+  background-color: rgba(255, 77, 109, 0.08);
   color: var(--coral-text);
-  border: 1px solid rgba(255, 77, 109, 0.3);
+  border: 1px solid rgba(255, 77, 109, 0.35);
+  border-radius: 6px;
   font-weight: 600;
 }
 
 .btn-danger-sm:hover:not(:disabled) {
-  background-color: rgba(255, 77, 109, 0.22);
+  background-color: rgba(255, 77, 109, 0.2);
+  color: #ffffff;
 }
 
 .btn-link {
@@ -452,18 +481,14 @@ body {
   border: none;
   color: var(--text-muted);
   font-size: 0.78rem;
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   cursor: pointer;
   text-decoration: underline;
-  transition: color 0.2s ease;
+  transition: color 0.15s ease;
 }
 
 .btn-link:hover {
   color: var(--green-neon);
-}
-
-.btn-icon {
-  font-size: 1rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -503,10 +528,11 @@ body {
 }
 
 .card-header h2 {
+  font-family: var(--font-heading);
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-white);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 /* --------------------------------------------------------------------------
@@ -897,9 +923,11 @@ body {
 }
 
 .summary-header h2 {
+  font-family: var(--font-heading);
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-white);
+  letter-spacing: -0.015em;
 }
 
 .summary-subtitle {
