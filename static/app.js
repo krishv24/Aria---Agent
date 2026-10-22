@@ -58,10 +58,12 @@ function setState(newState) {
 
   // 2. Synchronize Start / End Call button enabled states
   const isCallActiveState = currentState !== "idle";
-  startCallBtn.disabled = isCallActiveState;
+  startCallBtn.disabled = isCallActiveState || !SpeechRecognition;
   endCallBtn.disabled = !isCallActiveState;
 
-  console.log(`[State Change] -> ${currentState}`);
+  if (!SpeechRecognition) {
+    startCallBtn.title = "Please use Google Chrome or Microsoft Edge for voice support";
+  }
 }
 
 /**
@@ -235,7 +237,6 @@ function handleServerMessage(msg) {
       break;
 
     case "summary":
-      console.log("[WebSocket] Received post-call summary:", msg.data);
       renderSummaryScreen(msg.data, msg.transcript);
       break;
 
@@ -245,7 +246,7 @@ function handleServerMessage(msg) {
       break;
 
     default:
-      console.log("[WebSocket] Unhandled server message:", msg);
+      break;
   }
 }
 
@@ -256,18 +257,16 @@ function connectCallWebSocket() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/ws/call`;
 
-  console.log(`[WebSocket] Connecting to ${wsUrl}`);
   callSocket = new WebSocket(wsUrl);
   callSocket.binaryType = "blob"; // Audio bytes arrive as binary Blobs
 
   callSocket.onopen = () => {
-    console.log("[WebSocket] Call connection established");
+    // WebSocket connected successfully
   };
 
   callSocket.onmessage = (event) => {
     // 1. Binary audio frame corresponding to the preceding {"type": "audio"} message
     if (event.data instanceof Blob) {
-      console.log(`[WebSocket] Received binary audio frame (${event.data.size} bytes)`);
       audioQueue.enqueue(event.data, currentPendingAudioText);
       return;
     }
@@ -287,8 +286,11 @@ function connectCallWebSocket() {
   };
 
   callSocket.onclose = () => {
-    console.log("[WebSocket] Socket disconnected");
     if (isCallActive) {
+      showSpeechNotice(
+        "Voice connection was interrupted. Please click Start Call to reconnect.",
+        "warning"
+      );
       stopCall();
     }
   };
@@ -298,7 +300,7 @@ function connectCallWebSocket() {
  * Barge-in hook: fires on the FIRST interim chunk when the user begins speaking.
  */
 function onSpeechStart() {
-  console.log("[Speech Start] User started speaking");
+  // Barge-in hook trigger
 }
 
 /**
@@ -311,11 +313,8 @@ function onUserUtterance(text) {
 
   // 3. Ignore empty or 1-character transcripts (noise pops, coughs, single letters)
   if (!cleaned || cleaned.length <= 1) {
-    console.log("[Speech] Ignored single-character or empty utterance:", text);
     return;
   }
-
-  console.log("[User Utterance Finalized]:", cleaned);
 
   // Reset turn tracking flags
   hasInterruptedCurrentTurn = false;
@@ -364,9 +363,7 @@ function initSpeechRecognition() {
   recognition.continuous = true; // Listen continuously until explicitly stopped
   recognition.interimResults = true; // Emit live partial speech results
 
-  recognition.onstart = () => {
-    console.log("[SpeechRecognition] Service started listening");
-  };
+  recognition.onstart = () => {};
 
   recognition.onresult = (event) => {
     let interimTranscript = "";
@@ -405,7 +402,6 @@ function initSpeechRecognition() {
         audioQueue.isPlaying;
 
       if (words.length >= 2 && isAgentActive && !hasInterruptedCurrentTurn) {
-        console.log(`[Barge-In] User spoke ${words.length} words ("${trimmedInterim}") while agent was active. Interrupting!`);
         hasInterruptedCurrentTurn = true;
         // 1. Immediately halt audio on client
         audioQueue.stop();
@@ -421,7 +417,6 @@ function initSpeechRecognition() {
 
   // Auto-restart recognition if the browser stops it while the call is active.
   recognition.onend = () => {
-    console.log("[SpeechRecognition] Service ended");
     hideInterimText();
     hasFiredSpeechStart = false;
 
@@ -429,7 +424,6 @@ function initSpeechRecognition() {
     if (isCallActive && currentState !== "idle") {
       try {
         recognition.start();
-        console.log("[SpeechRecognition] Auto-restarted recognition");
       } catch (err) {
         console.warn("[SpeechRecognition] Auto-restart skipped:", err);
       }
@@ -447,7 +441,7 @@ function initSpeechRecognition() {
       );
       stopCall();
     } else if (event.error === "no-speech") {
-      console.log("[SpeechRecognition] Silence detected; keeping listener active");
+      // Silence detected; keep listener active
     } else if (event.error === "network") {
       showSpeechNotice(
         "Speech recognition network error. Please check your internet connection.",
@@ -716,8 +710,6 @@ class AudioQueue {
     const audio = new Audio(url);
     this.currentAudio = audio;
 
-    console.log(`[AudioQueue] Playing sentence: "${item.text}"`);
-
     audio.onended = () => {
       URL.revokeObjectURL(url);
       this.currentAudio = null;
@@ -746,7 +738,6 @@ class AudioQueue {
    * Used for barge-in (when user starts speaking) or call hangup.
    */
   stop() {
-    console.log("[AudioQueue] Stop requested: flushing queue and halting audio");
     this.queue = [];
     this.isPlaying = false;
 
@@ -795,7 +786,6 @@ function speakWithBrowserFallback(text) {
   }
 
   utterance.onend = () => {
-    console.log(`[SpeechSynthesis] Completed speaking: "${text}"`);
     if (currentState === "speaking") {
       setState(isCallActive ? "listening" : "idle");
     }
@@ -808,7 +798,6 @@ function speakWithBrowserFallback(text) {
     }
   };
 
-  console.log(`[SpeechSynthesis] Speaking fallback for: "${text}"`);
   window.speechSynthesis.speak(utterance);
 }
 

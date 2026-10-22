@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response
 from fastapi.responses import FileResponse, StreamingResponse
@@ -10,6 +11,8 @@ from app.orders import Order, get_all_orders
 from app.llm import get_llm_reply
 from app.tts import synthesize_sentence_bytes, stream_sentences
 from app.summary import CallSummary, generate_call_summary
+
+logger = logging.getLogger("aria.main")
 
 # Initialize FastAPI application instance
 app = FastAPI(title="Aura Skincare - Aria Voice Support Agent")
@@ -151,7 +154,7 @@ async def websocket_call_endpoint(websocket: WebSocket):
                 # Edge-TTS produced no audio; instruct client to use browser speech synthesis
                 await websocket.send_json({"type": "fallback_speak", "text": sentence})
         except Exception as tts_err:
-            print(f"[TTS Error] {tts_err}, falling back to client speech synthesis")
+            logger.warning("[TTS Error] %s, falling back to client speech synthesis", tts_err)
             await websocket.send_json({"type": "fallback_speak", "text": sentence})
 
     async def run_agent_turn(user_utterance: str):
@@ -182,13 +185,13 @@ async def websocket_call_endpoint(websocket: WebSocket):
                 history.append({"role": "assistant", "content": full_reply})
 
         except asyncio.CancelledError:
-            print("[Agent Task] Interrupted by user barge-in")
+            logger.info("[Agent Task] Interrupted by user barge-in")
             # Preserve partial spoken reply so the agent maintains conversation context
             if full_reply_parts:
                 history.append({"role": "assistant", "content": " ".join(full_reply_parts)})
             raise
         except Exception as exc:
-            print(f"[Agent Task Error] {exc}")
+            logger.exception("[Agent Task Error] %s", exc)
             await websocket.send_json({"type": "error", "message": f"Error: {exc}"})
             await websocket.send_json({"type": "state", "value": "listening"})
 
@@ -220,13 +223,13 @@ async def websocket_call_endpoint(websocket: WebSocket):
 
             elif msg_type == "interrupt":
                 # 2. User barged in (spoke 2+ words while agent was speaking/thinking)
-                print("[WebSocket] Barge-in interrupt received: cancelling active agent task")
+                logger.info("[WebSocket] Barge-in interrupt received: cancelling active agent task")
                 cancel_active_task()
                 await websocket.send_json({"type": "state", "value": "listening"})
 
             elif msg_type == "end_call":
                 # 5. User ended the call
-                print("[WebSocket] User ended call: generating post-call summary")
+                logger.info("[WebSocket] User ended call: generating post-call summary")
                 cancel_active_task()
 
                 # Generate structured JSON summary from full in-memory conversation history
@@ -241,7 +244,7 @@ async def websocket_call_endpoint(websocket: WebSocket):
                 break
 
     except WebSocketDisconnect:
-        print("[WebSocket] Client disconnected")
+        logger.info("[WebSocket] Client disconnected")
     finally:
         # 5. Clean up pending tasks on connection close
         cancel_active_task()

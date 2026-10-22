@@ -3,6 +3,7 @@
 import asyncio
 from enum import Enum
 import json
+import logging
 import os
 from typing import Any
 
@@ -11,6 +12,8 @@ from groq import AsyncGroq
 from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
+
+logger = logging.getLogger("aria.summary")
 
 # Shared Groq client for post-call analytics
 _groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY", ""))
@@ -158,7 +161,7 @@ async def generate_call_summary(history: list[dict]) -> CallSummary:
         try:
             return await _request_groq_summary(transcript)
         except Exception as exc:
-            print(f"[Summary] Attempt {attempt + 1} failed: {exc}")
+            logger.warning("[Summary] Attempt %s failed: %s", attempt + 1, exc)
             if attempt == 0:
                 await asyncio.sleep(0.5)
 

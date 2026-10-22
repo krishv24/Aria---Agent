@@ -1,11 +1,12 @@
 """Groq LLM client, conversation management, and tool-calling loop."""
 
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
 
 from dotenv import load_dotenv
-from groq import AsyncGroq
+from groq import AsyncGroq, RateLimitError, APIStatusError
 
 from app.prompts import SYSTEM_PROMPT
 from app.tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
@@ -75,6 +76,20 @@ def strip_reasoning(content: str) -> str:
     return content.strip()
 
 
+async def _call_groq_with_retry(messages: list[dict], stream: bool):
+    """Invoke Groq completions with 1 automatic retry on rate limit (429) errors."""
+    params = _make_api_params(messages, stream=stream)
+    for attempt in range(2):
+        try:
+            return await _groq_client.chat.completions.create(**params)
+        except (RateLimitError, APIStatusError) as exc:
+            is_429 = isinstance(exc, RateLimitError) or getattr(exc, "status_code", None) == 429
+            if is_429 and attempt == 0:
+                await asyncio.sleep(1.0)
+                continue
+            raise
+
+
 async def get_llm_reply(history: list[dict]) -> AsyncGenerator[str, None]:
     """Run the Groq tool-calling loop then stream back only the visible reply.
 
@@ -84,68 +99,64 @@ async def get_llm_reply(history: list[dict]) -> AsyncGenerator[str, None]:
       3. Repeat until no more tool calls (or MAX_TOOL_ITERATIONS hit).
       4. Make a final streaming call and yield only delta.content chunks,
          silently dropping any delta.reasoning chunks (channel='analysis').
+      5. Gracefully handles 429 rate limits (retries once, then yields friendly message).
     """
     messages = build_messages(history)
 
-    # --- Tool-calling loop (non-streaming so we can see tool_calls) ---
-    for _ in range(MAX_TOOL_ITERATIONS):
-        response = await _groq_client.chat.completions.create(
-            **_make_api_params(messages, stream=False)
-        )
+    try:
+        # --- Tool-calling loop (non-streaming so we can see tool_calls) ---
+        for _ in range(MAX_TOOL_ITERATIONS):
+            response = await _call_groq_with_retry(messages, stream=False)
+            message = response.choices[0].message
 
-        message = response.choices[0].message
+            # No tool calls means the model is ready to give a final reply
+            if not message.tool_calls:
+                break
 
-        # No tool calls means the model is ready to give a final reply
-        if not message.tool_calls:
-            break
+            # Add the assistant's tool-call message to conversation history
+            # exclude_unset avoids sending None fields the API rejects
+            messages.append(message.model_dump(exclude_unset=True, exclude_none=True))
 
-        # Add the assistant's tool-call message to conversation history
-        # exclude_unset avoids sending None fields the API rejects
-        messages.append(message.model_dump(exclude_unset=True, exclude_none=True))
+            # Execute every requested tool and record results
+            for tool_call in message.tool_calls:
+                tool_result = await run_tool_call(
+                    tool_call.function.name,
+                    json.loads(tool_call.function.arguments),
+                )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                })
+        else:
+            # Hit iteration limit without a text reply — give a safe fallback
+            yield "I'm sorry, I ran into an issue looking that up. Could you please try again?"
+            return
 
-        # Execute every requested tool and record results
-        for tool_call in message.tool_calls:
-            tool_result = await run_tool_call(
-                tool_call.function.name,
-                json.loads(tool_call.function.arguments),
-            )
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": tool_result,
-            })
-    else:
-        # Hit iteration limit without a text reply — give a safe fallback
-        yield "I'm sorry, I ran into a problem processing that. Could you please try again?"
-        return
+        # --- Final streaming reply — only yield content, drop reasoning chunks ---
+        stream = await _call_groq_with_retry(messages, stream=True)
 
-    # --- Final streaming reply — only yield content, drop reasoning chunks ---
-    # We make a fresh streaming call so the WebSocket can forward chunks in real-time.
-    # The tool results are already in `messages`, so the model just needs to respond.
-    stream = await _groq_client.chat.completions.create(
-        **_make_api_params(messages, stream=True)
-    )
+        full_reply = ""
+        async for chunk in stream:
+            delta = chunk.choices[0].delta
 
-    full_reply = ""
-    async for chunk in stream:
-        delta = chunk.choices[0].delta
+            # delta.reasoning (channel='analysis') is internal thinking — never send to TTS
+            if not delta.content:
+                continue
 
-        # delta.reasoning (channel='analysis') is internal thinking — never send to TTS
-        # We only forward delta.content, which is the actual spoken reply
-        if not delta.content:
-            continue
+            full_reply += delta.content
+            yield delta.content
 
-        full_reply += delta.content
-        yield delta.content
+        # If streaming produced nothing, give a safe fallback
+        if not full_reply.strip():
+            yield "I'm sorry, I didn't catch that. Could you please repeat?"
+            return
 
-    # If streaming produced nothing, give a safe fallback
-    if not full_reply.strip():
-        yield "I'm sorry, I didn't catch that. Could you please repeat?"
-        return
-
-    # Sanity-check: strip any reasoning that leaked into the content field
-    # (this does not affect what was already yielded — it's logged only)
-    cleaned = strip_reasoning(full_reply)
-    if cleaned != full_reply:
-        # Log the leak so we can catch it during testing
-        print(f"[LLM] Warning: reasoning text found in content and stripped.")
+    except (RateLimitError, APIStatusError) as exc:
+        is_429 = isinstance(exc, RateLimitError) or getattr(exc, "status_code", None) == 429
+        if is_429:
+            yield "Please give me just a moment to catch up, and try asking again."
+        else:
+            yield "I am having trouble connecting right now. Please try again in a moment."
+    except Exception as exc:
+        yield "I ran into a temporary issue. Could you please repeat that?"
