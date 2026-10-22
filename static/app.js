@@ -936,24 +936,7 @@ async function resetMockOrders() {
   }
 }
 
-/**
- * Helper to simulate a back-and-forth chat turn during UI testing.
- */
-let sampleTurnIndex = 0;
-const sampleTurns = [
-  { sender: "customer", text: "Hi, can you tell me the status of order ORD-101?" },
-  { sender: "agent", text: "Hello! Let me check that for you. ORD-101 is currently Out for Delivery via BlueDart and expected by 6 PM today." },
-  { sender: "customer", text: "Can I return order ORD-102? I opened it last week." },
-  { sender: "agent", text: "I understand! However, our policy accepts returns within 7 days of delivery for unopened items. Since ORD-102 was delivered 14 days ago, it cannot be returned." },
-  { sender: "customer", text: "I want to cancel order ORD-103." },
-  { sender: "agent", text: "Sure thing! ORD-103 is currently Processing, so I've successfully cancelled it for you." },
-];
 
-function addSampleChatTurn() {
-  const turn = sampleTurns[sampleTurnIndex % sampleTurns.length];
-  addTranscriptMessage(turn.sender, turn.text);
-  sampleTurnIndex++;
-}
 
 // Event Listeners for Call Buttons
 startCallBtn.addEventListener("click", () => {
