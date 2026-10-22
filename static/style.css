@@ -1,0 +1,13 @@
+/* Core styling placeholder for Aura Skincare Voice Agent */
+:root {
+  --bg-color: #fcfbf9;
+  --text-color: #2b2b2b;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
