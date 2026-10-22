@@ -443,3 +443,78 @@ body {
   text-align: center;
   padding: 2rem 0;
 }
+
+/* Throwaway Text Chat Test Panel */
+.text-test-panel {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.text-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.text-chat-box {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-height: 120px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.875rem;
+}
+
+.text-chat-msg {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  max-width: 90%;
+  line-height: 1.45;
+}
+
+.text-chat-msg.user {
+  align-self: flex-end;
+  background-color: #0284c7;
+  color: white;
+}
+
+.text-chat-msg.assistant {
+  align-self: flex-start;
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.text-chat-msg.thinking {
+  align-self: flex-start;
+  background-color: #fef9c3;
+  color: #713f12;
+  font-style: italic;
+}
+
+.text-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.text-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.text-input:focus {
+  border-color: var(--primary);
+}
+

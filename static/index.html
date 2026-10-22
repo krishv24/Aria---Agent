@@ -62,6 +62,24 @@
             <button class="btn btn-sm btn-outline" onclick="addSampleChatTurn()">+ Sample Message</button>
           </div>
         </div>
+
+        <!-- THROWAWAY: Text-based LLM test panel — remove once voice is wired up -->
+        <div class="text-test-panel">
+          <div class="text-test-header">
+            <span class="simulation-title">🧪 Text Chat Test (LLM + Tool Loop):</span>
+            <button class="btn-link" onclick="clearTextChat()">Clear chat</button>
+          </div>
+          <div id="textChatBox" class="text-chat-box"></div>
+          <div class="text-input-row">
+            <input
+              id="textInput"
+              type="text"
+              class="text-input"
+              placeholder="Type a message, e.g. 'Where is ORD-101?'"
+            />
+            <button id="textSendBtn" class="btn btn-primary" onclick="sendTextMessage()">Send</button>
+          </div>
+        </div>
       </section>
 
       <!-- Always-Visible Test Orders Panel -->

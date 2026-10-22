@@ -176,3 +176,102 @@ document.addEventListener("DOMContentLoaded", () => {
   setState("idle");
   fetchOrders();
 });
+
+// ----- THROWAWAY: Text Chat Test (remove once voice pipeline is live) -----
+
+// Conversation history for the text chat panel (separate from voice transcript)
+let textChatHistory = [];
+
+const textChatBox = document.getElementById("textChatBox");
+const textInput = document.getElementById("textInput");
+const textSendBtn = document.getElementById("textSendBtn");
+
+/**
+ * Add a message bubble into the text chat test box.
+ * @param {'user' | 'assistant' | 'thinking'} role
+ * @param {string} text
+ * @returns {HTMLElement} the bubble element (so we can update 'thinking' in-place)
+ */
+function appendTextBubble(role, text) {
+  const div = document.createElement("div");
+  div.className = `text-chat-msg ${role}`;
+  div.textContent = text;
+  textChatBox.appendChild(div);
+  textChatBox.scrollTop = textChatBox.scrollHeight;
+  return div;
+}
+
+/**
+ * Send the text input to POST /api/chat, stream back the reply, and display it.
+ * History is maintained across multiple turns so Aria has context.
+ */
+async function sendTextMessage() {
+  const userText = textInput.value.trim();
+  if (!userText) return;
+
+  // Disable input while waiting for response
+  textInput.value = "";
+  textInput.disabled = true;
+  textSendBtn.disabled = true;
+
+  // Show the user's message and add it to history
+  appendTextBubble("user", userText);
+  textChatHistory.push({ role: "user", content: userText });
+
+  // Show a "thinking" placeholder while the request is in flight
+  const thinkingBubble = appendTextBubble("thinking", "Aria is thinking...");
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: textChatHistory }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
+
+    // Read the streamed response text
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullReply = "";
+
+    // Replace the "thinking" bubble with the actual reply as it streams in
+    thinkingBubble.className = "text-chat-msg assistant";
+    thinkingBubble.textContent = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      fullReply += chunk;
+      thinkingBubble.textContent = fullReply;
+      textChatBox.scrollTop = textChatBox.scrollHeight;
+    }
+
+    // Add the completed reply to history for the next turn
+    textChatHistory.push({ role: "assistant", content: fullReply });
+  } catch (err) {
+    thinkingBubble.className = "text-chat-msg assistant";
+    thinkingBubble.textContent = `Error: ${err.message}`;
+    console.error("Text chat error:", err);
+  } finally {
+    textInput.disabled = false;
+    textSendBtn.disabled = false;
+    textInput.focus();
+  }
+}
+
+/** Clear the text chat history and display. */
+function clearTextChat() {
+  textChatHistory = [];
+  textChatBox.innerHTML = "";
+}
+
+// Allow pressing Enter to send in the text input
+textInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !textSendBtn.disabled) {
+    sendTextMessage();
+  }
+});
