@@ -86,6 +86,7 @@ function addTranscriptMessage(sender, text) {
 
   // Auto-scroll to the bottom of the transcript
   transcriptBox.scrollTop = transcriptBox.scrollHeight;
+  return bubble;
 }
 
 // ============================================================================
@@ -165,25 +166,150 @@ function hideInterimText() {
   interimText.textContent = "";
 }
 
+// ============================================================================
+// WebSocket Voice Call Controller & Barge-In Orchestration
+// ============================================================================
+
+let callSocket = null; // Active WebSocket connection to /ws/call
+let currentAgentBubble = null; // Reference to the DOM bubble for the current assistant turn
+let currentPendingAudioText = ""; // Sentence text associated with incoming binary audio frame
+let hasInterruptedCurrentTurn = false; // Prevents spamming interrupt messages during one barge-in
+
+/**
+ * Send a JSON-formatted control message over the active call WebSocket.
+ * @param {object} payload
+ */
+function sendWsMessage(payload) {
+  if (callSocket && callSocket.readyState === WebSocket.OPEN) {
+    callSocket.send(JSON.stringify(payload));
+  } else {
+    console.warn("[WebSocket] Cannot send message, socket not open:", payload);
+  }
+}
+
+/**
+ * Handle incoming server-sent control messages.
+ * @param {object} msg
+ */
+function handleServerMessage(msg) {
+  switch (msg.type) {
+    case "state":
+      // Do not prematurely revert state to 'listening' while audio is still playing in browser!
+      if (msg.value === "listening") {
+        if (!audioQueue.isPlaying && audioQueue.queue.length === 0) {
+          setState("listening");
+        }
+      } else {
+        setState(msg.value);
+      }
+      break;
+
+    case "agent_text":
+      currentPendingAudioText = msg.text;
+      if (msg.is_new_turn || !currentAgentBubble) {
+        currentAgentBubble = addTranscriptMessage("agent", msg.text);
+      } else {
+        currentAgentBubble.textContent += " " + msg.text;
+        transcriptBox.scrollTop = transcriptBox.scrollHeight;
+      }
+      break;
+
+    case "audio":
+      // Server signals that the next binary frame contains raw MP3 audio bytes
+      break;
+
+    case "fallback_speak":
+      console.warn("[TTS Fallback] Edge-TTS failed on server, using window.speechSynthesis:", msg.text);
+      speakWithBrowserFallback(msg.text);
+      break;
+
+    case "error":
+      console.error("[Server Error]", msg.message);
+      showSpeechNotice(msg.message, "danger");
+      break;
+
+    default:
+      console.log("[WebSocket] Unhandled server message:", msg);
+  }
+}
+
+/**
+ * Establish a bi-directional WebSocket connection to /ws/call.
+ */
+function connectCallWebSocket() {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${protocol}//${window.location.host}/ws/call`;
+
+  console.log(`[WebSocket] Connecting to ${wsUrl}`);
+  callSocket = new WebSocket(wsUrl);
+  callSocket.binaryType = "blob"; // Audio bytes arrive as binary Blobs
+
+  callSocket.onopen = () => {
+    console.log("[WebSocket] Call connection established");
+  };
+
+  callSocket.onmessage = (event) => {
+    // 1. Binary audio frame corresponding to the preceding {"type": "audio"} message
+    if (event.data instanceof Blob) {
+      console.log(`[WebSocket] Received binary audio frame (${event.data.size} bytes)`);
+      audioQueue.enqueue(event.data, currentPendingAudioText);
+      return;
+    }
+
+    // 2. Textual JSON control message
+    try {
+      const msg = JSON.parse(event.data);
+      handleServerMessage(msg);
+    } catch (err) {
+      console.error("[WebSocket] Failed to parse message JSON:", err, event.data);
+    }
+  };
+
+  callSocket.onerror = (err) => {
+    console.error("[WebSocket] Socket error:", err);
+    showSpeechNotice("Voice call connection error. Please restart the call.", "danger");
+  };
+
+  callSocket.onclose = () => {
+    console.log("[WebSocket] Socket disconnected");
+    if (isCallActive) {
+      stopCall();
+    }
+  };
+}
+
 /**
  * Barge-in hook: fires on the FIRST interim chunk when the user begins speaking.
- * Immediately halts any active agent audio playback and purges remaining queued sentences.
  */
 function onSpeechStart() {
-  console.log("[Speech Start] User started speaking (barge-in hook fired)");
-  audioQueue.stop();
+  console.log("[Speech Start] User started speaking");
 }
 
 /**
  * Handler for finalized user speech.
- * Displays the customer message in the transcript.
- * (Will send to backend WebSocket in the next stage).
+ * Sends the utterance to the server over WebSocket.
  * @param {string} text
  */
 function onUserUtterance(text) {
-  console.log("[User Utterance]", text);
-  addTranscriptMessage("customer", text);
-  // Backend WebSocket connection will be wired here in the next stage
+  const cleaned = normalizeSpeechTranscript(text).trim();
+
+  // 3. Ignore empty or 1-character transcripts (noise pops, coughs, single letters)
+  if (!cleaned || cleaned.length <= 1) {
+    console.log("[Speech] Ignored single-character or empty utterance:", text);
+    return;
+  }
+
+  console.log("[User Utterance Finalized]:", cleaned);
+
+  // Reset turn tracking flags
+  hasInterruptedCurrentTurn = false;
+  currentAgentBubble = null;
+
+  // Add customer speech bubble into live transcript
+  addTranscriptMessage("customer", cleaned);
+
+  // Send finalized text to backend over the active WebSocket
+  sendWsMessage({ type: "user_text", text: cleaned });
 }
 
 /**
@@ -235,32 +361,49 @@ function initSpeechRecognition() {
       const text = result[0].transcript;
 
       if (result.isFinal) {
-        // Result is final: clear interim display and reset barge-in flag
         hideInterimText();
         hasFiredSpeechStart = false;
 
         const finalText = normalizeSpeechTranscript(text).trim();
-        if (finalText) {
+        if (finalText.length > 1) {
           onUserUtterance(finalText);
         }
       } else {
-        // Unfinalized partial words
         interimTranscript += text;
       }
     }
 
-    if (interimTranscript.trim()) {
-      // Fire onSpeechStart only once per utterance (at first interim chunk)
+    const trimmedInterim = interimTranscript.trim();
+    if (trimmedInterim) {
       if (!hasFiredSpeechStart) {
         hasFiredSpeechStart = true;
         onSpeechStart();
       }
+
+      // 2. BARGE-IN: Detect if user speaks while agent is speaking or thinking
+      // Count words in interim transcript (must be 2+ words to avoid noise triggers)
+      const words = trimmedInterim.split(/\s+/).filter(Boolean);
+      const isAgentActive =
+        currentState === "speaking" ||
+        currentState === "thinking" ||
+        audioQueue.isPlaying;
+
+      if (words.length >= 2 && isAgentActive && !hasInterruptedCurrentTurn) {
+        console.log(`[Barge-In] User spoke ${words.length} words ("${trimmedInterim}") while agent was active. Interrupting!`);
+        hasInterruptedCurrentTurn = true;
+        // 1. Immediately halt audio on client
+        audioQueue.stop();
+        // 2. Instruct server to cancel active LLM and TTS tasks
+        sendWsMessage({ type: "interrupt" });
+        // 3. Revert state to listening
+        setState("listening");
+      }
+
       showInterimText(normalizeSpeechTranscript(interimTranscript));
     }
   };
 
   // Auto-restart recognition if the browser stops it while the call is active.
-  // Browsers (like Chrome) stop continuous recognition after brief silences.
   recognition.onend = () => {
     console.log("[SpeechRecognition] Service ended");
     hideInterimText();
@@ -288,7 +431,6 @@ function initSpeechRecognition() {
       );
       stopCall();
     } else if (event.error === "no-speech") {
-      // Normal silence timeout; recognition.onend will auto-restart if still in call
       console.log("[SpeechRecognition] Silence detected; keeping listener active");
     } else if (event.error === "network") {
       showSpeechNotice(
@@ -300,7 +442,7 @@ function initSpeechRecognition() {
 }
 
 /**
- * Start call session: updates state and starts microphone listening.
+ * Start call session: updates state, connects WebSocket, and starts mic.
  */
 function startCall() {
   clearSpeechNotice();
@@ -310,8 +452,13 @@ function startCall() {
   }
 
   isCallActive = true;
-  setState("listening");
+  hasInterruptedCurrentTurn = false;
+  currentAgentBubble = null;
 
+  // 1. Establish WebSocket connection to /ws/call
+  connectCallWebSocket();
+
+  // 2. Start speech recognition
   if (!recognition) {
     initSpeechRecognition();
   }
@@ -321,17 +468,38 @@ function startCall() {
   } catch (err) {
     console.warn("[SpeechRecognition] start() failed or already running:", err);
   }
+
+  // Initial state is listening while waiting for Aria's greeting
+  setState("listening");
 }
 
 /**
- * End call session: stops speech recognition and resets state to idle.
+ * End call session: stops speech recognition, audio playback, and closes WebSocket.
  */
 function stopCall() {
   isCallActive = false;
+  hasInterruptedCurrentTurn = false;
+  currentAgentBubble = null;
+
+  // 1. Stop any currently playing audio and cancel speech synthesis
   audioQueue.stop();
   hideInterimText();
   hasFiredSpeechStart = false;
 
+  // 2. Notify server and close WebSocket
+  if (callSocket) {
+    if (callSocket.readyState === WebSocket.OPEN) {
+      sendWsMessage({ type: "end_call" });
+    }
+    try {
+      callSocket.close();
+    } catch (err) {
+      console.warn("[WebSocket] Error closing socket:", err);
+    }
+    callSocket = null;
+  }
+
+  // 3. Stop microphone speech recognition
   if (recognition) {
     try {
       recognition.stop();
@@ -340,6 +508,7 @@ function stopCall() {
     }
   }
 
+  // 4. Return UI to idle
   setState("idle");
 }
 
@@ -638,6 +807,7 @@ clearTranscriptBtn.addEventListener("click", () => {
   if (transcriptPlaceholder) {
     transcriptPlaceholder.style.display = "block";
   }
+  currentAgentBubble = null;
   hideInterimText();
 });
 
