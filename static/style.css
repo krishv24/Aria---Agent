@@ -242,15 +242,16 @@ body {
 .state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.45rem 1.15rem;
-  border-radius: 9999px;
-  font-size: 0.82rem;
-  font-weight: 700;
+  gap: 0.5rem;
+  padding: 0.32rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
   font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-  transition: all 0.25s ease;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
   border: 1px solid transparent;
+  text-transform: uppercase;
 }
 
 .state-dot {
@@ -775,7 +776,7 @@ body {
   padding: 0.55rem 0.85rem;
   background: var(--bg-card-inner);
   border: 1px solid var(--border-green);
-  border-radius: 9999px;
+  border-radius: 6px;
   font-size: 0.85rem;
   color: var(--text-white);
   outline: none;
@@ -798,15 +799,16 @@ body {
 }
 
 .badge-tag {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.68rem;
+  font-weight: 600;
   font-family: var(--font-mono);
-  background-color: rgba(30, 227, 124, 0.12);
-  color: var(--green-neon);
-  border: 1px solid rgba(30, 227, 124, 0.3);
-  padding: 0.2rem 0.55rem;
-  border-radius: 9999px;
+  background-color: #151924;
+  color: #9aa0ad;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .orders-list {
@@ -845,16 +847,16 @@ body {
   background: rgba(30, 227, 124, 0.1);
   border: 1px solid rgba(30, 227, 124, 0.28);
   padding: 0.15rem 0.55rem;
-  border-radius: 6px;
+  border-radius: 4px;
   letter-spacing: 0.04em;
 }
 
 .order-status {
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-mono);
-  padding: 0.2rem 0.6rem;
-  border-radius: 9999px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -966,51 +968,51 @@ body {
 }
 
 .badge-intent {
-  padding: 0.2rem 0.65rem;
-  border-radius: 9999px;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-mono);
-  background-color: rgba(30, 227, 124, 0.12);
+  background-color: rgba(30, 227, 124, 0.08);
   color: var(--green-neon);
-  border: 1px solid rgba(30, 227, 124, 0.3);
+  border: 1px solid rgba(30, 227, 124, 0.28);
 }
 
 .badge-status {
-  padding: 0.2rem 0.65rem;
-  border-radius: 9999px;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-mono);
 }
 
 .status-resolved {
-  background-color: rgba(30, 227, 124, 0.12);
+  background-color: rgba(30, 227, 124, 0.08);
   color: var(--green-neon);
-  border: 1px solid rgba(30, 227, 124, 0.3);
+  border: 1px solid rgba(30, 227, 124, 0.28);
 }
 
 .status-unresolved {
-  background-color: rgba(255, 179, 0, 0.12);
+  background-color: rgba(255, 179, 0, 0.08);
   color: #ffb300;
-  border: 1px solid rgba(255, 179, 0, 0.3);
+  border: 1px solid rgba(255, 179, 0, 0.28);
 }
 
 .status-escalation {
-  background-color: rgba(255, 77, 109, 0.12);
+  background-color: rgba(255, 77, 109, 0.08);
   color: var(--coral-text);
-  border: 1px solid rgba(255, 77, 109, 0.3);
+  border: 1px solid rgba(255, 77, 109, 0.28);
 }
 
 .badge-order {
-  padding: 0.2rem 0.65rem;
-  border-radius: 9999px;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-mono);
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: #151924;
   color: var(--text-white);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .summary-grid {
