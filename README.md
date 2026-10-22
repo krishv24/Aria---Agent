@@ -7,22 +7,25 @@ A real-time, browser-based voice customer support agent built for **Aura Skincar
 ## Architecture Overview
 
 ```mermaid
+
 flowchart TD
-    User([Customer Mic / Voice]) <--> Browser["Client (Vanilla JS + Web Speech API)"]
-    Browser <-->|WebSocket: /ws/call\n(Control JSON + Binary MP3 Frames)| Server["FastAPI Server (app/main.py)"]
-    
-    subgraph Backend Intelligence Pipeline
-        Server -->|System Prompt + Conversation History| LLM["Groq LLM (openai/gpt-oss-120b)"]
-        LLM -->|Tool Call: get_order_details| Tools["Policy & Order Engine (app/tools.py)"]
-        Tools -->|Order State + Code Flags| LLM
-        LLM -->|Streaming Token Stream| SentenceChunker["Sentence Splitter (app/tts.py)"]
-        SentenceChunker -->|Complete Sentence| EdgeTTS["Edge-TTS (en-IN-NeerjaNeural)"]
-        EdgeTTS -->|Raw MP3 Audio Bytes| Server
-        EdgeTTS -.->|Fallback on error| BrowserFallback["Client window.speechSynthesis"]
+    User([Customer Mic / Voice]) <--> Browser["Client: Vanilla JS + Web Speech API"]
+
+    Browser <-->|"WebSocket: /ws/call<br/>Control JSON + Binary MP3 Frames"| Server["FastAPI Server: app/main.py"]
+
+    subgraph Backend["Backend Intelligence Pipeline"]
+        Server -->|"System Prompt + Conversation History"| LLM["Groq LLM: openai/gpt-oss-120b"]
+        LLM -->|"Tool Call: get_order_details"| Tools["Policy & Order Engine: app/tools.py"]
+        Tools -->|"Order State + Code Flags"| LLM
+        LLM -->|"Streaming Token Stream"| SentenceChunker["Sentence Splitter: app/tts.py"]
+        SentenceChunker -->|"Complete Sentence"| EdgeTTS["Edge-TTS: en-IN-NeerjaNeural"]
+        EdgeTTS -->|"Raw MP3 Audio Bytes"| Server
+        EdgeTTS -.->|"Fallback on Error"| BrowserFallback["Client: window.speechSynthesis"]
     end
 
-    Server -->|Post-Call Transcript| SummaryEngine["Summary Engine (app/summary.py)"]
-    SummaryEngine -->|Pydantic Validated JSON| SummaryModal["Post-Call Analytics & JSON View"]
+    Server -->|"Post-Call Transcript"| SummaryEngine["Summary Engine: app/summary.py"]
+    SummaryEngine -->|"Pydantic-Validated JSON"| SummaryModal["Post-Call Analytics & JSON View"]
+
 ```
 
 ---
@@ -42,45 +45,6 @@ flowchart TD
 | [`static/style.css`](file:///c:/Users/Krish%20Vinod/Desktop/Vs/Aira/aura-voice-agent/static/style.css) | Dark theme stylesheet using Helvetica typography, crisp 4px status chips, subtle radial glows, and responsive layout. |
 
 ---
-
-## Free-Tier Deployment on Render (Step-by-Step)
-
-Render provides free hosting for Python web services with full HTTPS support, allowing native microphone access in the browser.
-
-### 1. Push Code to GitHub
-Ensure the repository is pushed to your GitHub account:
-```bash
-git push origin main
-```
-
-### 2. Create Web Service on Render
-1. Sign up or log into [Render.com](https://render.com/).
-2. From the dashboard, click **New +** $\to$ **Web Service**.
-3. Connect your GitHub account and select your repository (`Aria---Agent` or `Aira`).
-4. Configure the service settings:
-   - **Name:** `aria-voice-agent`
-   - **Region:** Choose the closest region (e.g., Singapore or Frankfurt for lower latency)
-   - **Root Directory:** `aura-voice-agent`
-   - **Runtime:** `Python 3`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Instance Type:** `Free`
-
-### 3. Add Environment Variables
-Under the **Environment Variables** section on Render, add:
-- `GROQ_API_KEY`: `gsk_...` (your free Groq API key)
-- `PYTHON_VERSION`: `3.11.9`
-
-### 4. Deploy and Access
-1. Click **Deploy Web Service**.
-2. Once the build finishes (takes ~2 minutes), Render assigns a direct public URL:
-   ```
-   https://aria-voice-agent.onrender.com
-   ```
-3. Open this URL directly in **Google Chrome** or **Microsoft Edge**. Grant microphone access when prompted to begin talking with Aria.
-
----
-
 ## Local Setup & Development
 
 ### 1. Prerequisites
@@ -154,30 +118,20 @@ Rather than relying on LLM memory for business logic, policies are computed prog
 
 ---
 
-## Engineering Decisions & Architecture Rationale
+## Questions & Answers
 
-### 1. Architecture & Technology Choices
-A single bi-directional WebSocket connection (`/ws/call`) was selected over REST polling to eliminate HTTP handshake overhead and state fragmentation. WebSocket frames transmit lightweight JSON control signals and binary MP3 audio blobs over a single persistent TCP connection.
+1. Why did you choose this architecture and tech stack?
 
-For Speech-to-Text (STT), using the browser's native Web Speech API (`en-IN` accent) processes voice on-device with zero server compute and no per-minute transcription costs. For LLM inference, Groq's LPU provides token streaming in under 300ms.
+I wanted the agent to respond quickly and feel like a real conversation. WebSockets let me send audio and messages through one connection, Groq gives fast responses, and Edge-TTS converts replies into speech while the AI is still generating them. I also added a backup speech system in case the main one fails.
 
-Voice latency is minimized through **streaming sentence splitting**: rather than waiting for the entire LLM response, the backend scans incoming tokens for punctuation (`.`, `?`, `!`) and immediately dispatches complete sentences to Microsoft Edge-TTS (`en-IN-NeerjaNeural`). Sentence 1 begins playing on the client before sentence 2 has finished generating.
+2. What was the most difficult part and how did you solve it?
 
-### 2. Key Engineering Challenges: Barge-In Synchronization
-The primary technical challenge was managing mid-turn interruptions (barge-in) without race conditions:
-1. The client must instantly halt active audio and flush queued frames.
-2. An `interrupt` control packet must notify the server.
-3. The server must cancel the active `asyncio.Task` running the Groq stream and TTS synthesis to prevent wasted tokens and avoid speaking over the user.
+The hardest part was handling interruptions while the AI was speaking. I had to coordinate the browser's speech recognition, audio queue, WebSocket and backend tasks. I added a minimum 2-word check to avoid cancelling speech due to small noises. When interrupted, the client stops audio immediately and tells the server to cancel the task. I also made sure only sentences actually sent to the client are saved in the conversation history.
 
-To prevent background noise or brief throat clears ("um", "ah") from triggering false interruptions, a **2-word minimum heuristic** was implemented on interim speech results. When a task is cancelled, any sentences already delivered to the client are preserved in the session history to maintain conversational context.
+3. If you had one more week, what would you improve first and why?
 
-### 3. Future Roadmap & Enhancements
-1. **Server-Side VAD & WebAudio Pipeline:** Transitioning from browser Web Speech to an in-browser WebAudio Worklet streaming raw PCM frames to a server-side Silero VAD and Whisper model would provide universal browser compatibility (including Safari and Firefox) and voice emotion detection.
-2. **Retrieval-Augmented Generation (RAG):** Indexing ingredient lists, skin type compatibility, and usage instructions in a local vector database (e.g. Qdrant / Chroma) to allow Aria to answer dermatological product questions with exact citations.
-3. **Telephony Bridge (Twilio / SIP):** Connecting the WebSocket backend to Twilio Media Streams to support standard inbound cellular calls.
+I'd improve speech recognition first by moving it to the server using Silero VAD and Whisper or Deepgram. This would improve browser compatibility and make interruptions more responsive. After that, I'd add a product knowledge base for skincare questions and improve echo cancellation to avoid false interruptions.
 
-### 4. Production Scaling Considerations (1,000+ Calls/Day)
-1. **Session & Database Persistence:** Migrating in-memory session histories to Redis with session TTLs, and connecting mock orders to a transactional PostgreSQL/Shopify store with connection pooling.
-2. **Multi-Provider Fallback Routing:** Implementing an automated circuit breaker (Groq $\to$ Cerebras $\to$ Fireworks $\to$ Azure OpenAI) to distribute load during upstream rate-limit spikes.
-3. **Response Audio Caching:** Synthesizing common policy explanations (shipping thresholds, standard return windows) once and serving cached MP3 files via CDN/S3 by sentence hash, reducing TTS latency to $< 20\text{ms}$.
-4. **Telemetry & Tracing:** Integrating OpenTelemetry/Langfuse to track Time-to-First-Token (TTFT), synthesis duration, and barge-in frequency.
+4. What would need to change if the agent handled 1,000 conversations a day?
+
+I'd move session data to Redis, use PostgreSQL for order management, and add fallback LLM providers if Groq hits rate limits. I'd cache common responses to reduce TTS latency, add monitoring to track errors and response times, and mask personal information in transcripts to improve privacy and comply with applicable data protection requirements.
