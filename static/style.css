@@ -1,13 +1,445 @@
-/* Core styling placeholder for Aura Skincare Voice Agent */
+/* Clean and modern styling for Aura Skincare Voice Agent */
+
 :root {
-  --bg-color: #fcfbf9;
-  --text-color: #2b2b2b;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+
+  /* State colors */
+  --state-idle-bg: #f1f5f9;
+  --state-idle-text: #475569;
+  --state-idle-dot: #94a3b8;
+
+  --state-listening-bg: #ecfdf5;
+  --state-listening-text: #065f46;
+  --state-listening-dot: #10b981;
+
+  --state-thinking-bg: #fffbeb;
+  --state-thinking-text: #92400e;
+  --state-thinking-dot: #f59e0b;
+
+  --state-speaking-bg: #f5f3ff;
+  --state-speaking-text: #5b21b6;
+  --state-speaking-dot: #8b5cf6;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
-  padding: 2rem;
-  font-family: system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  line-height: 1.5;
+  padding: 1.5rem;
+}
+
+.app-layout {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  padding: 1.25rem 1.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  font-size: 2rem;
+}
+
+.brand-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.brand-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* State Badge */
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.state-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* State Themes */
+.state-idle {
+  background-color: var(--state-idle-bg);
+  color: var(--state-idle-text);
+}
+.state-idle .state-dot {
+  background-color: var(--state-idle-dot);
+}
+
+.state-listening {
+  background-color: var(--state-listening-bg);
+  color: var(--state-listening-text);
+}
+.state-listening .state-dot {
+  background-color: var(--state-listening-dot);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  animation: pulse-ring 1.5s infinite;
+}
+
+.state-thinking {
+  background-color: var(--state-thinking-bg);
+  color: var(--state-thinking-text);
+}
+.state-thinking .state-dot {
+  background-color: var(--state-thinking-dot);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+  animation: pulse-ring 1.2s infinite;
+}
+
+.state-speaking {
+  background-color: var(--state-speaking-bg);
+  color: var(--state-speaking-text);
+}
+.state-speaking .state-dot {
+  background-color: var(--state-speaking-dot);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
+  animation: pulse-ring 1s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* Content Grid */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 820px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card Container */
+.card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.card-header h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1.15rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--danger-hover);
+}
+
+.btn-sm {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid var(--border-color);
+}
+.btn-sm:hover {
+  background-color: #e2e8f0;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: #cbd5e1;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.call-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Transcript Box */
+.transcript-wrapper {
+  margin-top: 1rem;
+}
+
+.transcript-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.transcript-box {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-height: 280px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.transcript-placeholder {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+  margin-top: 5rem;
+}
+
+/* Chat Bubbles */
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-msg.customer {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-msg.agent {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.msg-sender {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.msg-bubble {
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.chat-msg.customer .msg-bubble {
+  background-color: #0284c7;
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-msg.agent .msg-bubble {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  border-bottom-left-radius: 2px;
+}
+
+/* Simulation Controls */
+.simulation-panel {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.simulation-title {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+.simulation-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Test Orders Section */
+.section-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.badge-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #e0f2fe;
+  color: #0369a1;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.order-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.85rem;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.order-card:hover {
+  border-color: #cbd5e1;
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.order-id {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.order-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.status-out-for-delivery {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-delivered {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-processing {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.order-detail-row {
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+  color: #334155;
+}
+
+.order-detail-row strong {
+  color: #0f172a;
+}
+
+.order-notes {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.loading-orders {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2rem 0;
 }

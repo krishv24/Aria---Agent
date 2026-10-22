@@ -4,10 +4,12 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-# Initialize FastAPI app instance
+from app.orders import Order, get_all_orders
+
+# Initialize FastAPI application instance
 app = FastAPI(title="Aura Skincare - Aria Voice Support Agent")
 
-# Mount static directory for frontend assets
+# Mount static directory for frontend assets (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -21,6 +23,12 @@ async def serve_index():
 async def health_check():
     """Health check endpoint to verify server status."""
     return {"status": "ok"}
+
+
+@app.get("/api/orders", response_model=list[Order])
+async def list_orders():
+    """Return all mock orders for the frontend test helper card."""
+    return get_all_orders()
 
 
 @app.websocket("/ws/call")

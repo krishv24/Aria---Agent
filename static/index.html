@@ -3,14 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aria — Aura Skincare AI Voice Support</title>
+  <title>Aria — Aura Skincare Customer Support</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <main class="container">
-    <h1>Aria — Aura Skincare Voice Support</h1>
-    <p>Voice agent interface will be rendered here.</p>
-  </main>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-logo">🌿</span>
+        <div>
+          <h1 class="brand-title">Aura Skincare</h1>
+          <p class="brand-subtitle">AI Voice Customer Support Agent (Aria)</p>
+        </div>
+      </div>
+      <!-- State Badge -->
+      <div class="state-container">
+        <div id="stateBadge" class="state-badge state-idle">
+          <span class="state-dot"></span>
+          <span id="stateLabel" class="state-label">Idle</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="content-grid">
+      <!-- Voice Call & Transcript Area -->
+      <section class="card call-section">
+        <div class="card-header">
+          <h2>Voice Conversation</h2>
+          <div class="call-actions">
+            <button id="startCallBtn" class="btn btn-primary">Start Call</button>
+            <button id="endCallBtn" class="btn btn-danger" disabled>End Call</button>
+          </div>
+        </div>
+
+        <!-- Live Transcript -->
+        <div class="transcript-wrapper">
+          <div class="transcript-header">
+            <span>Live Transcript</span>
+            <button id="clearTranscriptBtn" class="btn-link">Clear</button>
+          </div>
+          <div id="transcriptBox" class="transcript-box">
+            <div class="transcript-placeholder" id="transcriptPlaceholder">
+              Click <strong>Start Call</strong> and speak to Aria, or use the simulation buttons below to test states.
+            </div>
+          </div>
+        </div>
+
+        <!-- Temporary State Simulation Controls -->
+        <div class="simulation-panel">
+          <span class="simulation-title">⚡ State Simulator (Test Controls):</span>
+          <div class="simulation-buttons">
+            <button class="btn btn-sm" onclick="setState('listening')">Listening</button>
+            <button class="btn btn-sm" onclick="setState('thinking')">Thinking</button>
+            <button class="btn btn-sm" onclick="setState('speaking')">Speaking</button>
+            <button class="btn btn-sm" onclick="setState('idle')">Idle</button>
+            <button class="btn btn-sm btn-outline" onclick="addSampleChatTurn()">+ Sample Message</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Always-Visible Test Orders Panel -->
+      <aside class="card test-orders-section">
+        <div class="card-header">
+          <h2>Test Orders Helper</h2>
+          <span class="badge-tag">Mock DB</span>
+        </div>
+        <p class="section-desc">
+          Reference these sample orders for testing tracking, returns, and cancellation queries:
+        </p>
+        <div id="ordersContainer" class="orders-list">
+          <div class="loading-orders">Loading orders from backend...</div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
