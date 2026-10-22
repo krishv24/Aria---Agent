@@ -59,10 +59,14 @@
           </div>
         </div>
 
-        <!-- Temporary State Simulation Controls -->
+        <!-- Temporary State Simulation & Voice Output Controls -->
         <div class="simulation-panel">
-          <span class="simulation-title">⚡ State Simulator (Test Controls):</span>
+          <span class="simulation-title">⚡ Voice Output & Test Controls:</span>
           <div class="simulation-buttons">
+            <button id="testSpeakSingleBtn" class="btn btn-sm btn-voice" onclick="testSpeakSingle()">🔊 Speak Sentence (Edge-TTS)</button>
+            <button id="testSpeakQueueBtn" class="btn btn-sm btn-voice" onclick="testSpeakQueue()">🔊 Test Audio Queue (2 Sentences)</button>
+            <button id="testSpeakFallbackBtn" class="btn btn-sm btn-outline" onclick="testSpeakFallback()">⚠️ Test Fallback (SpeechSynthesis)</button>
+            <button id="stopAudioBtn" class="btn btn-sm btn-danger-sm" onclick="audioQueue.stop()">⏹ Stop Audio</button>
             <button class="btn btn-sm" onclick="setState('listening')">Listening</button>
             <button class="btn btn-sm" onclick="setState('thinking')">Thinking</button>
             <button class="btn btn-sm" onclick="setState('speaking')">Speaking</button>

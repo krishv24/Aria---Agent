@@ -167,10 +167,11 @@ function hideInterimText() {
 
 /**
  * Barge-in hook: fires on the FIRST interim chunk when the user begins speaking.
- * In later stages, this callback will cancel any active agent audio playback.
+ * Immediately halts any active agent audio playback and purges remaining queued sentences.
  */
 function onSpeechStart() {
   console.log("[Speech Start] User started speaking (barge-in hook fired)");
+  audioQueue.stop();
 }
 
 /**
@@ -327,6 +328,7 @@ function startCall() {
  */
 function stopCall() {
   isCallActive = false;
+  audioQueue.stop();
   hideInterimText();
   hasFiredSpeechStart = false;
 
@@ -339,6 +341,212 @@ function stopCall() {
   }
 
   setState("idle");
+}
+
+// ============================================================================
+// Speech Output: AudioQueue & Text-to-Speech (TTS)
+// ============================================================================
+
+/**
+ * Sequential Audio Queue for streaming TTS playback.
+ * - Receives audio blobs from sentence-level synthesis.
+ * - Plays audio items strictly in order without overlapping.
+ * - Provides stop() to immediately cancel playback and flush pending items (for barge-in).
+ */
+class AudioQueue {
+  constructor() {
+    this.queue = []; // Array of { blob: Blob, text: string }
+    this.currentAudio = null; // Currently playing HTMLAudioElement
+    this.isPlaying = false;
+  }
+
+  /**
+   * Enqueue an audio blob for playback.
+   * @param {Blob} blob - MP3 audio data
+   * @param {string} text - Associated sentence text
+   */
+  enqueue(blob, text) {
+    this.queue.push({ blob, text });
+    if (!this.isPlaying) {
+      this.playNext();
+    }
+  }
+
+  /**
+   * Play the next queued audio item.
+   */
+  async playNext() {
+    if (this.queue.length === 0) {
+      this.isPlaying = false;
+      this.currentAudio = null;
+      if (currentState === "speaking") {
+        setState(isCallActive ? "listening" : "idle");
+      }
+      return;
+    }
+
+    this.isPlaying = true;
+    setState("speaking");
+
+    const item = this.queue.shift();
+    const url = URL.createObjectURL(item.blob);
+    const audio = new Audio(url);
+    this.currentAudio = audio;
+
+    console.log(`[AudioQueue] Playing sentence: "${item.text}"`);
+
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      this.playNext();
+    };
+
+    audio.onerror = (err) => {
+      console.warn("[AudioQueue] Audio error, skipping to next:", err);
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      this.playNext();
+    };
+
+    try {
+      await audio.play();
+    } catch (err) {
+      console.warn("[AudioQueue] Playback failed or cancelled:", err);
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      this.playNext();
+    }
+  }
+
+  /**
+   * Halts any playing audio and flushes remaining queue items.
+   * Used for barge-in (when user starts speaking) or call hangup.
+   */
+  stop() {
+    console.log("[AudioQueue] Stop requested: flushing queue and halting audio");
+    this.queue = [];
+    this.isPlaying = false;
+
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+    }
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    if (currentState === "speaking") {
+      setState(isCallActive ? "listening" : "idle");
+    }
+  }
+}
+
+const audioQueue = new AudioQueue();
+
+/**
+ * Fallback synthesizer using browser window.speechSynthesis when edge-tts is unavailable.
+ * @param {string} text
+ */
+function speakWithBrowserFallback(text) {
+  if (!window.speechSynthesis) {
+    console.error("[SpeechSynthesis] SpeechSynthesis API not supported in this browser.");
+    return;
+  }
+
+  setState("speaking");
+  window.speechSynthesis.cancel(); // Cancel any lingering speech
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-IN";
+  utterance.rate = 1.05; // Slightly faster to match edge-tts (+5%)
+
+  // Pick an Indian English voice if present in browser
+  const voices = window.speechSynthesis.getVoices();
+  const indianVoice = voices.find(
+    (v) => v.lang === "en-IN" || v.lang === "en_IN"
+  );
+  if (indianVoice) {
+    utterance.voice = indianVoice;
+  }
+
+  utterance.onend = () => {
+    console.log(`[SpeechSynthesis] Completed speaking: "${text}"`);
+    if (currentState === "speaking") {
+      setState(isCallActive ? "listening" : "idle");
+    }
+  };
+
+  utterance.onerror = (err) => {
+    console.warn("[SpeechSynthesis] Error during speech synthesis:", err);
+    if (currentState === "speaking") {
+      setState(isCallActive ? "listening" : "idle");
+    }
+  };
+
+  console.log(`[SpeechSynthesis] Speaking fallback for: "${text}"`);
+  window.speechSynthesis.speak(utterance);
+}
+
+/**
+ * Synthesizes speech for a single sentence via /api/tts (edge-tts).
+ * Enqueues the audio into the AudioQueue.
+ * If edge-tts fails or returns an error, triggers window.speechSynthesis fallback.
+ * @param {string} sentence
+ * @param {boolean} simulateFailure
+ */
+async function speakSentence(sentence, simulateFailure = false) {
+  const text = sentence.trim();
+  if (!text) return;
+
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, simulate_failure: simulateFailure }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`TTS server returned HTTP ${res.status}`);
+    }
+
+    const audioBlob = await res.blob();
+    audioQueue.enqueue(audioBlob, text);
+  } catch (err) {
+    console.warn(`[TTS] Edge-TTS failed for "${text}". Falling back to browser SpeechSynthesis:`, err);
+    speakWithBrowserFallback(text);
+  }
+}
+
+/**
+ * Test button: speaks a single hardcoded sentence using Edge TTS.
+ */
+function testSpeakSingle() {
+  const sentence = "Hello! I am Aria from Aura Skincare. How can I help you today?";
+  addTranscriptMessage("agent", sentence);
+  speakSentence(sentence);
+}
+
+/**
+ * Test button: demonstrates the sequential audio queue by sending 2 sentences back-to-back.
+ * Sentence 2 is queued while Sentence 1 plays, demonstrating gapless ordered playback.
+ */
+function testSpeakQueue() {
+  const sentence1 = "Your order ORD-101 has been dispatched with BlueDart.";
+  const sentence2 = "It is out for delivery and will arrive by 6 PM today.";
+  addTranscriptMessage("agent", `${sentence1} ${sentence2}`);
+  speakSentence(sentence1);
+  speakSentence(sentence2);
+}
+
+/**
+ * Test button: tests the browser window.speechSynthesis fallback by simulating an edge-tts failure.
+ */
+function testSpeakFallback() {
+  const sentence = "This is a fallback test spoken directly by your browser using speech synthesis.";
+  addTranscriptMessage("agent", sentence);
+  speakSentence(sentence, true); // simulate_failure = true
 }
 
 /**
