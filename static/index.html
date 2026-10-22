@@ -209,7 +209,10 @@
             <span class="card-pulse-node"></span>
             <h2>Test Orders Helper</h2>
           </div>
-          <span class="badge-tag">Mock DB</span>
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <button id="resetOrdersBtn" class="btn-link" onclick="resetMockOrders()" style="font-size: 0.72rem;" title="Reset orders to initial state">Reset DB</button>
+            <span class="badge-tag">Mock DB</span>
+          </div>
         </div>
         <p class="section-desc">
           Reference these sample orders for testing tracking, returns, and cancellation queries:

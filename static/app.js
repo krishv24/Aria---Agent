@@ -240,6 +240,10 @@ function handleServerMessage(msg) {
       renderSummaryScreen(msg.data, msg.transcript);
       break;
 
+    case "orders_updated":
+      fetchOrders();
+      break;
+
     case "error":
       console.error("[Server Error]", msg.message);
       showSpeechNotice(msg.message, "danger");
@@ -893,9 +897,11 @@ function renderOrders(orders) {
 
   ordersContainer.innerHTML = orders
     .map((order) => {
+      const isCancelled = order.status.toLowerCase() === "cancelled";
       const statusClass = `status-${order.status.toLowerCase().replace(/\s+/g, "-")}`;
+      const cardClass = isCancelled ? "order-card cancelled" : "order-card";
       return `
-        <div class="order-card">
+        <div class="${cardClass}">
           <div class="order-card-header">
             <span class="order-id">${order.order_id}</span>
             <span class="order-status ${statusClass}">${order.status}</span>
@@ -913,6 +919,21 @@ function renderOrders(orders) {
       `;
     })
     .join("");
+}
+
+/**
+ * Reset mock orders in the backend database and refresh UI.
+ */
+async function resetMockOrders() {
+  try {
+    const res = await fetch("/api/orders/reset", { method: "POST" });
+    if (res.ok) {
+      const orders = await res.json();
+      renderOrders(orders);
+    }
+  } catch (err) {
+    console.error("Error resetting orders:", err);
+  }
 }
 
 /**
@@ -1036,6 +1057,7 @@ async function sendTextMessage() {
 
     // Add the completed reply to history for the next turn
     textChatHistory.push({ role: "assistant", content: fullReply });
+    fetchOrders();
   } catch (err) {
     thinkingBubble.className = "text-chat-msg assistant";
     thinkingBubble.textContent = `Error: ${err.message}`;

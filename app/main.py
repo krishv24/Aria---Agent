@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.orders import Order, get_all_orders
+from app.orders import Order, get_all_orders, reset_orders_db
 from app.llm import get_llm_reply
 from app.tts import synthesize_sentence_bytes, stream_sentences
 from app.summary import CallSummary, generate_call_summary
@@ -43,6 +43,13 @@ async def health_check():
 @app.get("/api/orders", response_model=list[Order])
 async def list_orders():
     """Return all mock orders for the frontend test helper card."""
+    return get_all_orders()
+
+
+@app.post("/api/orders/reset", response_model=list[Order])
+async def reset_orders_endpoint():
+    """Reset the mock orders database to initial state."""
+    reset_orders_db()
     return get_all_orders()
 
 
@@ -190,6 +197,9 @@ async def websocket_call_endpoint(websocket: WebSocket):
             full_reply = " ".join(full_reply_parts)
             if full_reply:
                 history.append({"role": "assistant", "content": full_reply})
+
+            # Broadcast database status refresh to client
+            await websocket.send_json({"type": "orders_updated"})
 
         except asyncio.CancelledError:
             logger.info("[Agent Task] Interrupted by user barge-in")

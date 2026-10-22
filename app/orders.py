@@ -101,6 +101,60 @@ def compute_policy_flags(order: Order) -> dict:
     return {"is_cancellable": is_cancellable, "is_returnable": is_returnable}
 
 
+def cancel_order_in_db(order_id: str) -> tuple[bool, str, Order | None]:
+    """Attempt to cancel an order in the mock database according to business policy."""
+    clean_id = normalize_order_id(order_id)
+    order = ORDERS_DATABASE.get(clean_id)
+    if not order:
+        return False, f"Order {order_id} was not found.", None
+
+    flags = compute_policy_flags(order)
+    if not flags["is_cancellable"]:
+        return (
+            False,
+            f"Order {clean_id} cannot be cancelled because its status is '{order.status}'. Only orders in 'Processing' status can be cancelled.",
+            order,
+        )
+
+    order.status = "Cancelled"
+    order.notes = "Cancelled by customer via Aria support"
+    return True, f"Order {clean_id} has been successfully cancelled in the database.", order
+
+
+def reset_orders_db() -> None:
+    """Reset the mock database to initial state."""
+    global ORDERS_DATABASE
+    ORDERS_DATABASE = {
+        "ORD-101": Order(
+            order_id="ORD-101",
+            customer="Priya Sharma",
+            product="Vitamin C Serum (30ml)",
+            value=699,
+            status="Out for Delivery",
+            notes="BlueDart BD-982103, expected by 6 PM today",
+            delivered_days_ago=None,
+        ),
+        "ORD-102": Order(
+            order_id="ORD-102",
+            customer="Rahul Verma",
+            product="Hydrating Sunscreen SPF 50",
+            value=499,
+            status="Delivered",
+            notes="Delhivery DL-441029, delivered 14 days ago",
+            delivered_days_ago=14,
+        ),
+        "ORD-103": Order(
+            order_id="ORD-103",
+            customer="Ananya Patel",
+            product="Green Tea Face Wash + Toner",
+            value=850,
+            status="Processing",
+            notes="Ordered 3 hours ago, eligible for cancellation",
+            delivered_days_ago=None,
+        ),
+    }
+
+
 def get_all_orders() -> list[Order]:
     """Retrieve all orders from the database to display in the UI helper panel."""
     return list(ORDERS_DATABASE.values())
